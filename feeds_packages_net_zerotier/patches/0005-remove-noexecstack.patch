@@ -9,7 +9,8 @@ Subject: [PATCH 5/6] remove noexecstack
 
 --- a/make-linux.mk
 +++ b/make-linux.mk
-@@ -395,7 +395,7 @@ override CXXFLAGS+=-fPIC -fPIE
+@@ -394,7 +394,7 @@ endif
+ #override CXXFLAGS+=-fPIC -fPIE
  
  # Non-executable stack
 -override LDFLAGS+=-Wl,-z,noexecstack
