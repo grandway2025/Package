@@ -1,7 +1,7 @@
 #ifndef APP_FILTER_H
 #define APP_FILTER_H
 
-#define AF_VERSION "5.3.3"
+#define AF_VERSION "5.3.2"
 #define AF_FEATURE_CONFIG_FILE "/tmp/feature.cfg"
 
 #define MAX_DPI_PKT_NUM 64
@@ -172,7 +172,5 @@ typedef struct flow_info{
 
 int regexp_match(char *reg, char *text);
 int hash_mac(unsigned char *mac);
-char *ipv6_to_str(const struct in6_addr *addr, char *str);
-int af_send_msg_to_user(char *pbuf, uint16_t len);
 
 #endif
