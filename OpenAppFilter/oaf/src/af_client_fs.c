@@ -23,8 +23,7 @@
 #include "cJSON.h"
 #include "af_log.h"
 #include "af_client.h"
-extern char *ipv6_to_str(const struct in6_addr *addr, char *str);
-
+#include "af_client_fs.h"
 extern struct list_head af_client_list_table[MAX_AF_CLIENT_HASH_SIZE];
 struct af_client_iter_state
 {
@@ -127,6 +126,7 @@ static int af_client_seq_show(struct seq_file *s, void *v)
     sprintf(ip_str, "%pI4", &node->ip);
 	ipv6_to_str(&node->ipv6, ipv6_str);
 
+
     seq_printf(s, "%-4d %-20s %-20s %-32s %-16d %-16d\n", index, mac_str, ip_str, ipv6_str, node->rate.up_rate, node->rate.down_rate);
     return 0;
 }
@@ -185,9 +185,7 @@ static const struct proc_ops af_client_fops = {
 static int af_visiting_seq_show(struct seq_file *s, void *v)
 {
     unsigned char mac_str[32] = {0};
-    unsigned char ip_str[32] = {0};
     static int index = 0;
-	int i;
     af_client_info_t *node = (af_client_info_t *)v;
     if (v == SEQ_START_TOKEN)
     {
@@ -282,7 +280,6 @@ int init_af_client_procfs(void)
     if (!pde)
     {
         AF_ERROR("client visiting proc file created error\n");
-        remove_proc_entry(AF_CLIENT_PROC_STR, net->proc_net);
         return -1;
     }
     return 0;

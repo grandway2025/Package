@@ -34,9 +34,6 @@ DEFINE_RWLOCK(af_client_lock);
 u32 total_client = 0;
 struct list_head af_client_list_table[MAX_AF_CLIENT_HASH_SIZE];
 
-int af_send_msg_to_user(char *pbuf, uint16_t len);
-extern char *ipv6_to_str(const struct in6_addr *addr, char *str);
-
 static void init_client_timer(af_client_info_t *client);
 static void stop_client_timer(af_client_info_t *client);
 
@@ -94,7 +91,7 @@ void af_client_list_reset_report_num(void)
 	AF_CLIENT_UNLOCK_W();
 }
 
-int get_mac_hash_code(unsigned char *mac)
+static int get_mac_hash_code(unsigned char *mac)
 {
 	if (!mac)
 		return 0;
@@ -222,7 +219,7 @@ void check_client_expire(void)
 }
 
 #define MAX_EXPIRED_VISIT_INFO_COUNT 10
-void flush_expired_visit_info(af_client_info_t *node)
+static void flush_expired_visit_info(af_client_info_t *node)
 {
 	int i;
 	int count = 0;
@@ -259,7 +256,7 @@ void flush_expired_visit_info(af_client_info_t *node)
 	}
 }
 
-int __af_visit_info_report(af_client_info_t *node)
+static int __af_visit_info_report(af_client_info_t *node)
 {
 	unsigned char mac_str[32] = {0};
 	unsigned char ip_str[32] = {0};
@@ -269,6 +266,8 @@ int __af_visit_info_report(af_client_info_t *node)
 	cJSON *visit_obj = NULL;
 	cJSON *visit_info_array = NULL;
 	cJSON *root_obj = NULL;
+
+	flush_expired_visit_info(node);
 
 	root_obj = cJSON_CreateObject();
 	if (!root_obj)
@@ -283,6 +282,7 @@ int __af_visit_info_report(af_client_info_t *node)
 	cJSON_AddNumberToObject(root_obj, "app_num", node->visit_app_num);
 	cJSON_AddNumberToObject(root_obj, "up_flow", (u32)(node->period_flow.up_bytes >> 10));
 	cJSON_AddNumberToObject(root_obj, "down_flow", (u32)(node->period_flow.down_bytes >> 10));
+	cJSON_AddNumberToObject(root_obj, "active", node->active);
 
 	visit_info_array = cJSON_CreateArray();
 	for (i = 0; i < MAX_RECORD_APP_NUM; i++)
@@ -299,16 +299,16 @@ int __af_visit_info_report(af_client_info_t *node)
 
 	cJSON_AddItemToObject(root_obj, "visit_info", visit_info_array);
 	out = cJSON_Print(root_obj);
-	cJSON_Delete(root_obj);
-	if (!out)
+	if (!out) {
+		cJSON_Delete(root_obj);
 		return 0;
-	cJSON_Minify(out);
-	if (count > 0 || node->report_count == 0)
-	{
-		AF_INFO("report:%s count=%d\n", out, node->report_count);
-		node->report_count++;
-		af_send_msg_to_user(out, strlen(out));
 	}
+	cJSON_Minify(out);
+
+	AF_INFO("report:%s count=%d\n", out, node->report_count);
+	node->report_count++;
+	af_send_msg_to_user(out, strlen(out));
+	cJSON_Delete(root_obj);
 
 	memset(&node->period_flow, 0x0, sizeof(node->period_flow));
 
@@ -318,7 +318,7 @@ int __af_visit_info_report(af_client_info_t *node)
 
 static inline int get_packet_dir(struct net_device *in)
 {
-	if (!strncmp(in->name, g_lan_ifname, 15))
+	if (strstr(in->name, g_lan_ifname))
 	{
 		return PKT_DIR_UP;
 	}
@@ -330,7 +330,7 @@ static inline int get_packet_dir(struct net_device *in)
 
 
 
-void af_update_client_status(af_client_info_t *node)
+static void af_update_client_status(af_client_info_t *node)
 {
 	if (node->last_flow.down_bytes > 0){
 		node->period_flow.down_bytes += (node->flow.down_bytes - node->last_flow.down_bytes);
@@ -350,7 +350,7 @@ void af_update_client_status(af_client_info_t *node)
 	node->last_flow.down_bytes = node->flow.down_bytes;
 	node->last_flow.up_pkts  = node->flow.up_pkts;
 	node->last_flow.down_pkts = node->flow.down_pkts;
-	if (node->rate.pkt_down_rate > 20){
+	if (node->rate.pkt_down_rate > 10 || node->rate.pkt_up_rate > 5){
 		node->active_time++;
 		node->inactive_time = 0;
 		node->active = 1;
@@ -470,8 +470,6 @@ static u_int32_t af_client_hook2(unsigned int hook,
 								 int (*okfn)(struct sk_buff *))
 {
 #endif
-	struct ethhdr *ethhdr = NULL;
-	unsigned char smac[ETH_ALEN];
 	af_client_info_t *nfc = NULL;
 	int pkt_dir = 0;
 	struct iphdr *iph = NULL;
@@ -584,23 +582,19 @@ static void client_timer_handler(unsigned long data)
 {
     af_client_info_t *client = (af_client_info_t *)data;
 #endif
-	static int t_count = 0;
-    
     if (!client) {
         AF_ERROR("client timer handler: invalid client\n");
         return;
     }
 	
-	if (t_count % 60 == 0){ // 60s
+	if (client->timer_count >= 30) {
 		__af_visit_info_report(client);
+		client->timer_count = 0;
 	}
 
-	if (t_count % 2 == 0){  // 2s
-		af_update_client_status(client);
-	}
-	t_count++;
-	AF_DEBUG("tcount=%d\n", t_count);
-    mod_timer(&client->client_timer, jiffies + HZ * 1); 
+	af_update_client_status(client);
+	client->timer_count++;
+    mod_timer(&client->client_timer, jiffies + HZ * 2); 
 }
 
  void init_client_timer(af_client_info_t *client)
