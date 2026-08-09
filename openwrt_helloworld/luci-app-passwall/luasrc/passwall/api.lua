@@ -556,7 +556,7 @@ function get_node_list()
 	uci:foreach(appname, "socks", function(s)
 		if s.enabled == "1" and s.node then
 			node_list.socks_list[#node_list.socks_list + 1] = {
-				id = "Socks_" .. s[".name"],
+				id = s[".name"],
 				remark = i18n.translate("Socks Config") .. " [" .. s.port .. i18n.translate("Port") .. "]",
 				group = "Socks"
 			}
@@ -642,15 +642,12 @@ function get_full_node_remarks(n)
 	return remarks
 end
 
-function gen_uuid(format)
+function gen_uuid()
 	local uuid = sys.exec("echo -n $(cat /proc/sys/kernel/random/uuid)")
-	if format == nil then
-		uuid = string.gsub(uuid, "-", "")
-	end
 	return uuid
 end
 
-function gen_short_uuid(length)
+function gen_random_char(length)
 	if not length then length = 8 end
 	return sys.exec("echo -n $(head /dev/urandom | tr -dc A-Za-z0-9 | head -c %s)" % length)
 end
