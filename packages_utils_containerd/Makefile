@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=containerd
-PKG_VERSION:=2.2.5
+PKG_VERSION:=2.3.6
 PKG_RELEASE:=1
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
@@ -9,7 +9,7 @@ PKG_CPE_ID:=cpe:/a:linuxfoundation:containerd
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/containerd/containerd/tar.gz/v${PKG_VERSION}?
-PKG_HASH:=ca9c2084ab92b3ce073fa4e43f29a0cad33c2ea71d4e09777acfc082b90049db
+PKG_HASH:=b4b407c64e11a22549b14c47857ac0e02e9f47f8cfc28924e9aa04a0adcaa883
 
 PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
 
@@ -56,6 +56,13 @@ endif
 
 # Reset golang-package.mk overrides so we can use the Makefile
 Build/Compile=$(call Build/Compile/Default)
+
+# Fix build error caused by missing info/git file required by //go:embed in nri vendor dependency
+define Build/Compile/Pre
+	mkdir -p $(PKG_BUILD_DIR)/$(MAKE_PATH)/vendor/github.com/containerd/nri/pkg/version/info
+	echo "v$(PKG_VERSION)" > $(PKG_BUILD_DIR)/$(MAKE_PATH)/vendor/github.com/containerd/nri/pkg/version/info/git
+endef
+Hooks/Compile/Pre += Build/Compile/Pre
 
 define Package/containerd/install
 	$(INSTALL_DIR) $(1)/usr/bin/
